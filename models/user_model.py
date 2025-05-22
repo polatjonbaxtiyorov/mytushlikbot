@@ -160,10 +160,7 @@ class User:
         ok = await update_attendance_cell_in_sheet(self.telegram_id, price)
         if not ok:
             # rollback in-memory & DB
-            self.attendance.remove(date_str)
-            self._record_txn("rollback", price, f"Rollback lunch on {date_str}")
-            await self.save()
-            raise RuntimeError(f"Failed to sync debt for {self.telegram_id}; rolled back")
+            raise RuntimeError("Failed to sync debt for Google Sheet")
 
 
     async def remove_attendance(self, date_str: str):
