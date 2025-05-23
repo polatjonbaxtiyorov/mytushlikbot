@@ -5,6 +5,7 @@ import json
 import gspread
 import logging
 import asyncio
+from datetime import datetime
 import pymongo
 from google.oauth2.service_account import Credentials
 from functools import wraps
@@ -174,42 +175,54 @@ async def sync_prices_from_sheet(context: ContextTypes.DEFAULT_TYPE = None) -> d
     return {"success": True, "updated": updated, "errors": errors}
 
 
-async def update_attendance_cell_in_sheet(telegram_id: int, value: int):
-    from datetime import datetime
+async def update_attendance_cell_in_sheet(telegram_id: int, value: int) -> bool:
     """Marks a cell in the 'Attendance' sheet for today's column."""
     try:
         ws = await get_worksheet("Attendance")
-        all_data = await ws.get_all_records()
-        headers = await ws.row_values(1)
+        if not ws:
+            logger.error("Could not get Attendance worksheet")
+            return False
+            
+        # Get all data and headers
+        all_data = await asyncio.to_thread(ws.get_all_records)
+        headers = await asyncio.to_thread(ws.row_values, 1)
         
         # Step 1: Find user row
         row_num = None
         for idx, row in enumerate(all_data, start=2):  # Header is row 1
-            if str(row.get("telegram_id")) == str(telegram_id):
-                row_num = idx
-                break
+            try:
+                if int(row.get("telegram_id", 0)) == telegram_id:
+                    row_num = idx
+                    break
+            except (ValueError, TypeError):
+                continue
+                
         if row_num is None:
             logger.warning(f"User {telegram_id} not found in Attendance sheet.")
             return False
         
         # Step 2: Find today's column
         today = f"{datetime.now().month}/{datetime.now().day}"
+        
         if today not in headers:
-            await asyncio.to_thread(ws.update_cell, 1, len(headers) + 1, today)
+            # Add new column for today
             col_num = len(headers) + 1
+            await asyncio.to_thread(ws.update_cell, 1, col_num, today)
+            logger.info(f"Added new date column: {today}")
         else:
             col_num = headers.index(today) + 1
         
         # Step 3: Write attendance
         await asyncio.to_thread(ws.update_cell, row_num, col_num, value)
+        logger.info(f"Updated attendance for user {telegram_id}: {value}")
         
-        # Return True on success
         return True
         
     except Exception as e:
         logger.error(f"Error updating attendance cell for user {telegram_id}: {e}")
         return False
 
-async def clear_attendance_cell_in_sheet(telegram_id: int):
+
+async def clear_attendance_cell_in_sheet(telegram_id: int) -> bool:
     """Clears today's attendance cell for a user in the Attendance sheet."""
-    await update_attendance_cell_in_sheet(telegram_id, 0)
+    return await update_attendance_cell_in_sheet(telegram_id, 0)
