@@ -173,33 +173,42 @@ async def sync_prices_from_sheet(context: ContextTypes.DEFAULT_TYPE = None) -> d
 
     return {"success": True, "updated": updated, "errors": errors}
 
+
 async def update_attendance_cell_in_sheet(telegram_id: int, value: int):
     from datetime import datetime
     """Marks a cell in the 'Attendance' sheet for today's column."""
-    ws = await get_worksheet("Attendance")
-    all_data = await ws.get_all_records()
-    headers = await ws.row_values(1)
-    
-    # Step 1: Find user row
-    row_num = None
-    for idx, row in enumerate(all_data, start=2):  # Header is row 1
-        if str(row.get("telegram_id")) == str(telegram_id):
-            row_num = idx
-            break
-    if row_num is None:
-        logger.warning(f"User {telegram_id} not found in Attendance sheet.")
+    try:
+        ws = await get_worksheet("Attendance")
+        all_data = await ws.get_all_records()
+        headers = await ws.row_values(1)
+        
+        # Step 1: Find user row
+        row_num = None
+        for idx, row in enumerate(all_data, start=2):  # Header is row 1
+            if str(row.get("telegram_id")) == str(telegram_id):
+                row_num = idx
+                break
+        if row_num is None:
+            logger.warning(f"User {telegram_id} not found in Attendance sheet.")
+            return False
+        
+        # Step 2: Find today's column
+        today = f"{datetime.now().month}/{datetime.now().day}"
+        if today not in headers:
+            await asyncio.to_thread(ws.update_cell, 1, len(headers) + 1, today)
+            col_num = len(headers) + 1
+        else:
+            col_num = headers.index(today) + 1
+        
+        # Step 3: Write attendance
+        await asyncio.to_thread(ws.update_cell, row_num, col_num, value)
+        
+        # Return True on success
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error updating attendance cell for user {telegram_id}: {e}")
         return False
-    
-    # Step 2: Find today's column
-    today = f"{datetime.now().month}/{datetime.now().day}"
-    if today not in headers:
-        await asyncio.to_thread(ws.update_cell, 1, len(headers) + 1, today)
-        col_num = len(headers) + 1
-    else:
-        col_num = headers.index(today) + 1
-    
-    # Step 3: Write attendance
-    await asyncio.to_thread(ws.update_cell, row_num, col_num, value)
 
 async def clear_attendance_cell_in_sheet(telegram_id: int):
     """Clears today's attendance cell for a user in the Attendance sheet."""
