@@ -215,6 +215,52 @@ class User:
             logger.error(f"Error in remove_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
             raise
 
+        
+    async def decline_attendance(self, date_str: str):
+        if date_str not in self.declined_days:
+            self.declined_days.append(date_str)
+            await self.save()
+
+    async def remove_decline(self, date_str: str):
+        if date_str in self.declined_days:
+            self.declined_days.remove(date_str)
+            await self.save()
+
+    async def get_food_choice(self, date: str) -> str | None:
+        """
+        Returns the recorded food choice for this user on `date`,
+        or None if they didn’t pick one.
+        """
+        col = await get_collection("daily_food_choices")
+        doc = await col.find_one({"telegram_id": self.telegram_id, "date": date})
+        return doc.get("food_choice") if doc else None
+    @staticmethod
+    async def cleanup_old_food_choices():
+        tz = pytz.timezone("Asia/Tashkent")
+        today = datetime.now(tz).strftime("%Y-%m-%d")
+        col = await get_collection("daily_food_choices")
+        await col.delete_many({"date": {"$lt": today}})
+
+    async def change_name(self, new_name: str):
+        self.name = new_name
+        self._record_txn("name_change", 0, f"Name changed to {new_name}")
+        await self.save()
+
+    async def update_balance(self, amount: int, desc: str = "Balance adjustment"):
+        self.balance += amount
+        self._record_txn("balance", amount, desc)
+        await self.save()
+
+    async def promote_to_admin(self):
+        self.is_admin = True
+        self._record_txn("admin", 0, "Promoted to admin")
+        await self.save()
+
+    async def demote_from_admin(self):
+        self.is_admin = False
+        self._record_txn("admin", 0, "Demoted from admin")
+        await self.save()
+        
     async def set_food_choice(self, date: str, food: str) -> bool:
         """
         Record today’s food choice for this user, both in MongoDB and in-memory.
