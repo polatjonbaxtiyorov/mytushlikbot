@@ -131,36 +131,45 @@ class User:
 
         # only load these when needed
         from utils.sheets_utils import get_price_from_sheet, update_attendance_cell_in_sheet
-        # 0) fetch live price
-        price = await get_price_from_sheet(self.telegram_id)
-        self.daily_price = price
+        
+        try:
+            # 0) fetch live price
+            price = await get_price_from_sheet(self.telegram_id)
+            if not isinstance(price, (int, float)):
+                logger.error(f"get_price_from_sheet returned invalid type: {type(price)}, value: {price}")
+                raise ValueError(f"Invalid price type: {type(price)}")
+            
+            self.daily_price = price
 
-        # 1) record attendance locally (no balance change here)
-        self.attendance.append(date_str)
-        self._record_txn("attendance", -price, f"Lunch on {date_str}")
+            # 1) record attendance locally (no balance change here)
+            self.attendance.append(date_str)
+            self._record_txn("attendance", -price, f"Lunch on {date_str}")
 
-        # 2) save food choice if provided
-        if food:
-            col = await get_collection("daily_food_choices")
-            await col.update_one(
-                {"telegram_id": self.telegram_id, "date": date_str},
-                {"$set": {
-                    "telegram_id": self.telegram_id,
-                    "date": date_str,
-                    "food_choice": food,
-                    "user_name": self.name
-                }},
-                upsert=True
-            )
+            # 2) save food choice if provided
+            if food:
+                col = await get_collection("daily_food_choices")
+                await col.update_one(
+                    {"telegram_id": self.telegram_id, "date": date_str},
+                    {"$set": {
+                        "telegram_id": self.telegram_id,
+                        "date": date_str,
+                        "food_choice": food,
+                        "user_name": self.name
+                    }},
+                    upsert=True
+                )
 
-        # 3) persist in Mongo
-        await self.save()
+            # 3) persist in Mongo
+            await self.save()
 
-        # 4) push only debt to Sheets (rollback on failure)
-        ok = await update_attendance_cell_in_sheet(self.telegram_id, price)
-        if not ok:
-            # rollback in-memory & DB
-            raise RuntimeError("Failed to sync debt for Google Sheet")
+            # 4) push only debt to Sheets (rollback on failure)
+            ok = await update_attendance_cell_in_sheet(self.telegram_id, price)
+            if not ok:
+                # rollback in-memory & DB
+                raise RuntimeError("Failed to sync debt for Google Sheet")
+                
+        except Exception as e:
+            logger.error(f"Error in add_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
 
     async def remove_attendance(self, date_str: str):
         """
