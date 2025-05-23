@@ -117,12 +117,12 @@ def main():
         # Morning prompt 07:00 Mon–Fri
         jq.run_daily(
             uh.morning_prompt,
-            time=dt_time(7, 0, tzinfo=tz),
+            time=dt_time(8, 2, tzinfo=tz),
             days=(1, 2, 3, 4, 5),
             name="morning_survey"
         )
 
-        # Daily summary 10:00 Mon–Fri
+        # Daily summary 9:40 Mon–Fri
         jq.run_daily(
             ah.send_summary,
             time=dt_time(9, 40, tzinfo=tz),
