@@ -125,141 +125,96 @@ class User:
                 }
         return result
 
-async def add_attendance(self, date_str: str, food: str = None):
-    if date_str in self.attendance:
-        return
+    async def add_attendance(self, date_str: str, food: str = None):
+        if date_str in self.attendance:
+            return
 
-    # only load these when needed
-    from utils.sheets_utils import get_price_from_sheet, update_attendance_cell_in_sheet
-    
-    try:
-        # 0) fetch live price
-        price = await get_price_from_sheet(self.telegram_id)
-        if not isinstance(price, (int, float)):
-            logger.error(f"get_price_from_sheet returned invalid type: {type(price)}, value: {price}")
-            raise ValueError(f"Invalid price type: {type(price)}")
-                     
-        self.daily_price = price
+        # only load these when needed
+        from utils.sheets_utils import get_price_from_sheet, update_attendance_cell_in_sheet
+        
+        try:
+            # 0) fetch live price
+            price = await get_price_from_sheet(self.telegram_id)
+            if not isinstance(price, (int, float)):
+                logger.error(f"get_price_from_sheet returned invalid type: {type(price)}, value: {price}")
+                raise ValueError(f"Invalid price type: {type(price)}")
+                        
+            self.daily_price = price
 
-        # 1) record attendance locally (no balance change here)
-        self.attendance.append(date_str)
-        self._record_txn("attendance", -price, f"Lunch on {date_str}")
+            # 1) record attendance locally (no balance change here)
+            self.attendance.append(date_str)
+            self._record_txn("attendance", -price, f"Lunch on {date_str}")
 
-        # 2) save food choice if provided
-        if food:
-            col = await get_collection("daily_food_choices")
-            await col.update_one(
-                {"telegram_id": self.telegram_id, "date": date_str},
-                {"$set": {
-                    "telegram_id": self.telegram_id,
-                    "date": date_str,
-                    "food_choice": food,
-                    "user_name": self.name
-                }},
-                upsert=True
-            )
-
-        # 3) persist in Mongo
-        await self.save()
-
-        # 4) push only debt to Sheets (rollback on failure)
-        ok = await update_attendance_cell_in_sheet(self.telegram_id, price)
-        if not ok:
-            # rollback in-memory & DB
-            self.attendance.remove(date_str)
-            self._record_txn("rollback", price, f"Rollback attendance on {date_str}")
+            # 2) save food choice if provided
             if food:
                 col = await get_collection("daily_food_choices")
-                await col.delete_one({"telegram_id": self.telegram_id, "date": date_str})
-            await self.save()
-            raise RuntimeError("Failed to sync debt for Google Sheet")
-                     
-    except Exception as e:
-        logger.error(f"Error in add_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
-        raise
+                await col.update_one(
+                    {"telegram_id": self.telegram_id, "date": date_str},
+                    {"$set": {
+                        "telegram_id": self.telegram_id,
+                        "date": date_str,
+                        "food_choice": food,
+                        "user_name": self.name
+                    }},
+                    upsert=True
+                )
 
-async def remove_attendance(self, date_str: str):
-    """
-    Undo attendance and subtract that daily_price from debt (Qarzlar) in Sheets.
-    """
-    if date_str not in self.attendance:
-        return
-
-    from utils.sheets_utils import get_price_from_sheet, clear_attendance_cell_in_sheet
-
-    try:
-        # 0) fetch live price
-        price = await get_price_from_sheet(self.telegram_id)
-        self.daily_price = price
-
-        # 1) remove attendance locally (no balance change here)
-        self.attendance.remove(date_str)
-        self._record_txn("cancel", price, f"Cancel lunch on {date_str}")
-
-        # 2) remove the food-choice record
-        col = await get_collection("daily_food_choices")
-        await col.delete_one({"telegram_id": self.telegram_id, "date": date_str})
-
-        # 3) persist in Mongo
-        await self.save()
-
-        # 4) push only debt decrease to Sheets (rollback on failure)
-        ok = await clear_attendance_cell_in_sheet(self.telegram_id)
-        if not ok:
-            # rollback in-memory & DB
-            self.attendance.append(date_str)
-            self._record_txn("rollback", -price, f"Rollback cancel on {date_str}")
-            await self.save()
-            raise RuntimeError(f"Failed to sync debt rollback for {self.telegram_id}")
-    except Exception as e:
-        logger.error(f"Error in remove_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
-        raise
-
-        
-    async def decline_attendance(self, date_str: str):
-        if date_str not in self.declined_days:
-            self.declined_days.append(date_str)
+            # 3) persist in Mongo
             await self.save()
 
-    async def remove_decline(self, date_str: str):
-        if date_str in self.declined_days:
-            self.declined_days.remove(date_str)
-            await self.save()
+            # 4) push only debt to Sheets (rollback on failure)
+            ok = await update_attendance_cell_in_sheet(self.telegram_id, price)
+            if not ok:
+                # rollback in-memory & DB
+                self.attendance.remove(date_str)
+                self._record_txn("rollback", price, f"Rollback attendance on {date_str}")
+                if food:
+                    col = await get_collection("daily_food_choices")
+                    await col.delete_one({"telegram_id": self.telegram_id, "date": date_str})
+                await self.save()
+                raise RuntimeError("Failed to sync debt for Google Sheet")
+                        
+        except Exception as e:
+            logger.error(f"Error in add_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
+            raise
 
-    async def get_food_choice(self, date: str) -> str | None:
+    async def remove_attendance(self, date_str: str):
         """
-        Returns the recorded food choice for this user on `date`,
-        or None if they didn’t pick one.
+        Undo attendance and subtract that daily_price from debt (Qarzlar) in Sheets.
         """
-        col = await get_collection("daily_food_choices")
-        doc = await col.find_one({"telegram_id": self.telegram_id, "date": date})
-        return doc.get("food_choice") if doc else None
-    @staticmethod
-    async def cleanup_old_food_choices():
-        tz = pytz.timezone("Asia/Tashkent")
-        today = datetime.now(tz).strftime("%Y-%m-%d")
-        col = await get_collection("daily_food_choices")
-        await col.delete_many({"date": {"$lt": today}})
+        if date_str not in self.attendance:
+            return
 
-    async def change_name(self, new_name: str):
-        self.name = new_name
-        self._record_txn("name_change", 0, f"Name changed to {new_name}")
-        await self.save()
+        from utils.sheets_utils import get_price_from_sheet, clear_attendance_cell_in_sheet
 
-    async def update_balance(self, amount: int, desc: str = "Balance adjustment"):
-        self.balance += amount
-        self._record_txn("balance", amount, desc)
-        await self.save()
+        try:
+            # 0) fetch live price
+            price = await get_price_from_sheet(self.telegram_id)
+            self.daily_price = price
 
-    async def promote_to_admin(self):
-        self.is_admin = True
-        self._record_txn("admin", 0, "Promoted to admin")
-        await self.save()
+            # 1) remove attendance locally (no balance change here)
+            self.attendance.remove(date_str)
+            self._record_txn("cancel", price, f"Cancel lunch on {date_str}")
 
-    async def demote_from_admin(self):
-        self.is_admin = False
-        self._record_txn("admin", 0, "Demoted from admin")
-        await self.save()
+            # 2) remove the food-choice record
+            col = await get_collection("daily_food_choices")
+            await col.delete_one({"telegram_id": self.telegram_id, "date": date_str})
+
+            # 3) persist in Mongo
+            await self.save()
+
+            # 4) push only debt decrease to Sheets (rollback on failure)
+            ok = await clear_attendance_cell_in_sheet(self.telegram_id)
+            if not ok:
+                # rollback in-memory & DB
+                self.attendance.append(date_str)
+                self._record_txn("rollback", -price, f"Rollback cancel on {date_str}")
+                await self.save()
+                raise RuntimeError(f"Failed to sync debt rollback for {self.telegram_id}")
+        except Exception as e:
+            logger.error(f"Error in remove_attendance for user {self.telegram_id}: {type(e).__name__}: {e}", exc_info=True)
+            raise
+
     async def set_food_choice(self, date: str, food: str) -> bool:
         """
         Record today’s food choice for this user, both in MongoDB and in-memory.
