@@ -162,7 +162,6 @@ class User:
             # rollback in-memory & DB
             raise RuntimeError("Failed to sync debt for Google Sheet")
 
-
     async def remove_attendance(self, date_str: str):
         """
         Undo attendance and subtract that daily_price from debt (Qarzlar) in Sheets.

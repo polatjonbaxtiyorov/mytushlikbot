@@ -390,10 +390,10 @@ async def _persist_choice_and_attendance(user, date_str, food):
         await user.set_food_choice(date_str, food)
         # this will deduct balance + log txn + push to Sheets
         await user.add_attendance(date_str, food)
+        logger.info(f"Successfully persisted attendance for user {user.telegram_id} on {date_str}")
     except Exception as e:
-        # log or notify admin if something goes wrong
-        import logging
-        logging.getLogger(__name__).error("Failed to persist attendance for %s: %s", user.telegram_id, e)
+        # log the full error with more context
+        logger.error(f"Failed to persist attendance for user {user.telegram_id} on {date_str}: {type(e).__name__}: {e}", exc_info=True)
 
 async def get_admin_users_async():
     users = await get_all_users_async()  # or whatever function returns all users
