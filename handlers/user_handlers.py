@@ -476,20 +476,31 @@ async def cancel_lunch_callback(update: Update, context: ContextTypes.DEFAULT_TY
             )
 
 # ─── SCHEDULED JOBS ────────────────────────────
+async def reminder_callback(context: ContextTypes.DEFAULT_TYPE):
+    tz = pytz.timezone("Asia/Tashkent")
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+
+    users = await get_all_users_async()
+    for user in users:
+        if today not in user.attendance:
+            await context.bot.send_message(
+                chat_id=user.telegram_id,
+                text="So'rovnomaga ovoz berishni unutmang. E'tiboringiz uchun rahmat!"
+            )
+
 async def morning_prompt(context: ContextTypes.DEFAULT_TYPE):
     cancelled_lunches = await get_collection("cancelled_lunches")
-
     tz = pytz.timezone("Asia/Tashkent")
     now = datetime.now(tz)
     today = now.strftime("%Y-%m-%d")
-        
+
     if now.weekday() >= 5:
         return
 
     cancelled = await cancelled_lunches.find_one({"date": today})
     if cancelled:
-        # nothing to do today
         return
+
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("Ha", callback_data=YES),
          InlineKeyboardButton("Yo'q", callback_data=NO)]
@@ -499,6 +510,16 @@ async def morning_prompt(context: ContextTypes.DEFAULT_TYPE):
             chat_id=u.telegram_id,
             text="Bugun tushlikka borasizmi?",
             reply_markup=kb
+        )
+
+    # Schedule reminder for 8:20
+    reminder_time = datetime.combine(now.date(), time(8, 20, tzinfo=tz))
+    delay_seconds = (reminder_time - now).total_seconds()
+    if delay_seconds > 0:
+        context.job_queue.run_once(
+            reminder_callback,
+            when=delay_seconds,
+            name=f"reminder_{today}"
         )
 
 async def check_debts(context: ContextTypes.DEFAULT_TYPE):
