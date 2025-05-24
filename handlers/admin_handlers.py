@@ -663,7 +663,7 @@ async def del_menu_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE, me
         await query.message.edit_text(f"❌ {menu_name} bo'sh.", reply_markup=get_menu_kb())
         return
     
-    kb = [[InlineKeyboardButton(i, callback_data=f"del_{menu_name}:{i}")] for i in items]
+    kb = [[InlineKeyboardButton(i, callback_data=f"del:{menu_name}:{i}")] for i in items]
     kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data="menu_back")])
     
     await query.message.edit_text(f"{menu_name} dan o'chirish:", reply_markup=InlineKeyboardMarkup(kb))
