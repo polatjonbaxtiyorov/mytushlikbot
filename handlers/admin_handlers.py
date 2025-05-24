@@ -545,7 +545,7 @@ async def notify_response_callback(update: Update, context: ContextTypes.DEFAULT
 def get_current_week_menus():
     """Determine which pair of menus to use based on current week."""
     # Get current week number (ISO week)
-    current_week = datetime.datetime.now().isocalendar()[1]
+    current_week = datetime.now().isocalendar()[1]
     
     # Even weeks use menu1/menu2, odd weeks use menu3/menu4
     if current_week % 2 == 0:
@@ -558,7 +558,7 @@ def get_menu_for_today():
     odd_menu, even_menu = get_current_week_menus()
     
     # Get current day (1=Monday, 7=Sunday)
-    current_day = datetime.datetime.now().isoweekday()
+    current_day = datetime.now().isoweekday()
     
     # Odd days (Mon, Wed, Fri, Sun) vs Even days (Tue, Thu, Sat)
     if current_day in [1, 3, 5, 7]:  # Odd days
@@ -574,7 +574,7 @@ async def menu_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = get_menu_kb()
     
     # Show current week info
-    current_week = datetime.datetime.now().isocalendar()[1]
+    current_week = datetime.now().isocalendar()[1]
     week_type = "Juft hafta" if current_week % 2 == 0 else "Toq hafta"
     current_menus = get_current_week_menus()
     today_menu = get_menu_for_today()
