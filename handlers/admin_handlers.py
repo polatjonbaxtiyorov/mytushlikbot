@@ -561,9 +561,9 @@ def get_menu_for_today():
     current_day = datetime.now().isoweekday()
     
     # Odd days (Mon, Wed, Fri, Sun) vs Even days (Tue, Thu, Sat)
-    if current_day in [1, 3, 5, 7]:  # Odd days
+    if current_day in [1, 3, 5]:  # Odd days
         return odd_menu
-    else:  # Even days
+    elif current_day in [2, 4]:  # Even days
         return even_menu
 
 async def menu_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
