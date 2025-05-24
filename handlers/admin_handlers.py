@@ -49,33 +49,88 @@ BACK_BTN         = "Ortga"
 KASSA_BTN        = "Kassa"
 
 # ─── MENU SUB‑BUTTONS ──────────────────────────────────────────────────────────
-VIEW_MENU1_BTN = "1‑Menuni Ko‘rish"
-VIEW_MENU2_BTN = "2‑Menuni Ko‘rish"
-ADD_MENU1_BTN  = "1‑Menuga Qo‘shish"
-ADD_MENU2_BTN  = "2‑Menuga Qo‘shish"
-DEL_MENU1_BTN  = "1‑Menudan O‘chirish"
-DEL_MENU2_BTN  = "2‑Menudan O‘chirish"
+VIEW_MENU1_BTN = "1‑Menuni Ko'rish"
+VIEW_MENU2_BTN = "2‑Menuni Ko'rish"
+VIEW_MENU3_BTN = "3‑Menuni Ko'rish"
+VIEW_MENU4_BTN = "4‑Menuni Ko'rish"
+
+ADD_MENU1_BTN  = "1‑Menuga Qo'shish"
+ADD_MENU2_BTN  = "2‑Menuga Qo'shish"
+ADD_MENU3_BTN  = "3‑Menuga Qo'shish"
+ADD_MENU4_BTN  = "4‑Menuga Qo'shish"
+
+DEL_MENU1_BTN  = "1‑Menudan O'chirish"
+DEL_MENU2_BTN  = "2‑Menudan O'chirish"
+DEL_MENU3_BTN  = "3‑Menudan O'chirish"
+DEL_MENU4_BTN  = "4‑Menudan O'chirish"
 
 # ─── ADMIN PANEL KEYBOARD ──────────────────────────────────────────────────────
 async def init_collections():
-    """Initialize the menu collection and ensure menu1/menu2 exist."""
+    """Initialize the menu collection and ensure all 4 menus exist."""
     global menu_col, users_col
     menu_col  = await get_collection("menu")
     users_col = await get_collection("users")
-    for name in ("menu1", "menu2"):
-        if not await menu_col.find_one({"name": name}):
-            await menu_col.insert_one({"name": name, "items": []})
+    
+    # Initialize all 4 menus with descriptions
+    menu_configs = {
+        "menu1": {"items": [], "description": "Juft hafta - Toq kunlar"},
+        "menu2": {"items": [], "description": "Juft hafta - Juft kunlar"},
+        "menu3": {"items": [], "description": "Toq hafta - Toq kunlar"},
+        "menu4": {"items": [], "description": "Toq hafta - Juft kunlar"}
+    }
+    
+    for name, config in menu_configs.items():
+        existing = await menu_col.find_one({"name": name})
+        if not existing:
+            await menu_col.insert_one({
+                "name": name, 
+                "items": config["items"],
+                "description": config["description"]
+            })
 
 def get_menu_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(VIEW_MENU1_BTN, callback_data="view_menu1"),
-         InlineKeyboardButton(VIEW_MENU2_BTN, callback_data="view_menu2")],
-        [InlineKeyboardButton(ADD_MENU1_BTN, callback_data="add_menu1"),
-         InlineKeyboardButton(ADD_MENU2_BTN, callback_data="add_menu2")],
-        [InlineKeyboardButton(DEL_MENU1_BTN, callback_data="del_menu1"),
-         InlineKeyboardButton(DEL_MENU2_BTN, callback_data="del_menu2")],
-        [InlineKeyboardButton(BACK_BTN, callback_data="back_to_admin")],
-    ])
+    """Alternative keyboard using the defined button constants."""
+    current_menus = get_current_week_menus()
+    
+    # Map current menus to appropriate buttons
+    if current_menus == ("menu1", "menu2"):
+        current_view = [VIEW_MENU1_BTN, VIEW_MENU2_BTN]
+        current_add = [ADD_MENU1_BTN, ADD_MENU2_BTN]
+        current_del = [DEL_MENU1_BTN, DEL_MENU2_BTN]
+        next_view = [VIEW_MENU3_BTN, VIEW_MENU4_BTN]
+        next_add = [ADD_MENU3_BTN, ADD_MENU4_BTN]
+        next_del = [DEL_MENU3_BTN, DEL_MENU4_BTN]
+    else:
+        current_view = [VIEW_MENU3_BTN, VIEW_MENU4_BTN]
+        current_add = [ADD_MENU3_BTN, ADD_MENU4_BTN]
+        current_del = [DEL_MENU3_BTN, DEL_MENU4_BTN]
+        next_view = [VIEW_MENU1_BTN, VIEW_MENU2_BTN]
+        next_add = [ADD_MENU1_BTN, ADD_MENU2_BTN]
+        next_del = [DEL_MENU1_BTN, DEL_MENU2_BTN]
+    
+    keyboard = [
+        # Current week
+        [InlineKeyboardButton("📅 Joriy hafta", callback_data="separator")],
+        [InlineKeyboardButton(current_view[0], callback_data=f"view_{current_menus[0]}"),
+         InlineKeyboardButton(current_view[1], callback_data=f"view_{current_menus[1]}")],
+        [InlineKeyboardButton(current_add[0], callback_data=f"add_{current_menus[0]}"),
+         InlineKeyboardButton(current_add[1], callback_data=f"add_{current_menus[1]}")],
+        [InlineKeyboardButton(current_del[0], callback_data=f"del_{current_menus[0]}"),
+         InlineKeyboardButton(current_del[1], callback_data=f"del_{current_menus[1]}")],
+        
+        # Next week
+        [InlineKeyboardButton("📅 Keyingi hafta", callback_data="separator")],
+        [InlineKeyboardButton(next_view[0], callback_data=f"view_{'menu3' if current_menus[0] != 'menu3' else 'menu1'}"),
+         InlineKeyboardButton(next_view[1], callback_data=f"view_{'menu4' if current_menus[1] != 'menu4' else 'menu2'}")],
+        [InlineKeyboardButton(next_add[0], callback_data=f"add_{'menu3' if current_menus[0] != 'menu3' else 'menu1'}"),
+         InlineKeyboardButton(next_add[1], callback_data=f"add_{'menu4' if current_menus[1] != 'menu4' else 'menu2'}")],
+        [InlineKeyboardButton(next_del[0], callback_data=f"del_{'menu3' if current_menus[0] != 'menu3' else 'menu1'}"),
+         InlineKeyboardButton(next_del[1], callback_data=f"del_{'menu4' if current_menus[1] != 'menu4' else 'menu2'}")],
+        
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="menu_back")]
+    ]
+    
+    return InlineKeyboardMarkup(keyboard)
 
 def get_admin_kb():
     return ReplyKeyboardMarkup([
@@ -487,12 +542,49 @@ async def notify_response_callback(update: Update, context: ContextTypes.DEFAULT
     )
 
 # ─── MENU MANAGEMENT ───────────────────────────────────────────────────────
+def get_current_week_menus():
+    """Determine which pair of menus to use based on current week."""
+    # Get current week number (ISO week)
+    current_week = datetime.datetime.now().isocalendar()[1]
+    
+    # Even weeks use menu1/menu2, odd weeks use menu3/menu4
+    if current_week % 2 == 0:
+        return ("menu1", "menu2")
+    else:
+        return ("menu3", "menu4")
+
+def get_menu_for_today():
+    """Get the appropriate menu for today based on day and week."""
+    odd_menu, even_menu = get_current_week_menus()
+    
+    # Get current day (1=Monday, 7=Sunday)
+    current_day = datetime.datetime.now().isoweekday()
+    
+    # Odd days (Mon, Wed, Fri, Sun) vs Even days (Tue, Thu, Sat)
+    if current_day in [1, 3, 5, 7]:  # Odd days
+        return odd_menu
+    else:  # Even days
+        return even_menu
+
 async def menu_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show the main menu management panel."""
     if menu_col is None:
         await init_collections()
+    
     kb = get_menu_kb()
-    text = "Menyu boshqaruvi:"
+    
+    # Show current week info
+    current_week = datetime.datetime.now().isocalendar()[1]
+    week_type = "Juft hafta" if current_week % 2 == 0 else "Toq hafta"
+    current_menus = get_current_week_menus()
+    today_menu = get_menu_for_today()
+    
+    text = f"""🍽 Menyu boshqaruvi:
+
+📅 Joriy: {week_type} (hafta #{current_week})
+🔄 Hozirgi menyu juftligi: {current_menus[0]} / {current_menus[1]}
+📍 Bugungi menyu: {today_menu}"""
+    
     if update.message:
         await update.message.reply_text(text, reply_markup=kb)
     else:
@@ -503,26 +595,43 @@ async def menu_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 raise
 
 async def view_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, menu_name: str):
-    """List all items in menu1 or menu2."""
+    """List all items in the specified menu."""
     if menu_col is None:
         await init_collections()
+    
     query = update.callback_query
     await query.answer()
+    
     doc = await menu_col.find_one({"name": menu_name})
-    items = doc.get("items", [])
-    text = f"🍽 {menu_name} taomlari:\n\n" + ("\n".join(f"• {i}" for i in items) or "— Bo‘sh")
+    items = doc.get("items", []) if doc else []
+    
+    # Add status indicator
+    current_menus = get_current_week_menus()
+    today_menu = get_menu_for_today()
+    
+    status = ""
+    if menu_name in current_menus:
+        status = " (joriy hafta)"
+    if menu_name == today_menu:
+        status += " 🔥 (bugun)"
+    
+    text = f"🍽 {menu_name}{status} taomlari:\n\n" + ("\n".join(f"• {i}" for i in items) or "— Bo'sh")
+    
     await query.message.edit_text(text, reply_markup=get_menu_kb())
 
 async def add_menu_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE, menu_name: str):
-    """Ask admin to type a new item for menu1 or menu2."""
+    """Ask admin to type a new item for the specified menu."""
     if menu_col is None:
         await init_collections()
+    
     query = update.callback_query
     await query.answer()
+    
     context.user_data["pending_menu_add"] = menu_name
+    
     await query.message.edit_text(
         f"Yangi taom nomini kiriting ({menu_name}):",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(BACK_BTN, callback_data="menu_back")]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Orqaga", callback_data="menu_back")]])
     )
 
 async def handle_menu_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -530,67 +639,88 @@ async def handle_menu_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     menu_name = context.user_data.pop("pending_menu_add", None)
     if not menu_name:
         return  # no menu in progress
+    
     food = update.message.text.strip()
     if not food:
-        await update.message.reply_text("❌ Bo‘sh nom bo‘lmaydi.", reply_markup=get_menu_kb())
+        await update.message.reply_text("❌ Bo'sh nom bo'lmaydi.", reply_markup=get_menu_kb())
         return
+    
     await menu_col.update_one({"name": menu_name}, {"$addToSet": {"items": food}}, upsert=True)
-    await update.message.reply_text(f"✅ «{food}» {menu_name} ga qo‘shildi!", reply_markup=get_menu_kb())
+    await update.message.reply_text(f"✅ «{food}» {menu_name} ga qo'shildi!", reply_markup=get_menu_kb())
 
 async def del_menu_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE, menu_name: str):
     """Show inline buttons to delete an existing item."""
     if menu_col is None:
         await init_collections()
+    
     query = update.callback_query
     await query.answer()
+    
     doc = await menu_col.find_one({"name": menu_name})
-    items = doc.get("items", [])
+    items = doc.get("items", []) if doc else []
+    
+    if not items:
+        await query.message.edit_text(f"❌ {menu_name} bo'sh.", reply_markup=get_menu_kb())
+        return
+    
     kb = [[InlineKeyboardButton(i, callback_data=f"del_{menu_name}:{i}")] for i in items]
-    kb.append([InlineKeyboardButton(BACK_BTN, callback_data="menu_back")])
-    await query.message.edit_text(f"{menu_name} dan o‘chirish:", reply_markup=InlineKeyboardMarkup(kb))
+    kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data="menu_back")])
+    
+    await query.message.edit_text(f"{menu_name} dan o'chirish:", reply_markup=InlineKeyboardMarkup(kb))
 
 async def handle_menu_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Perform the deletion of a menu item."""
     query = update.callback_query
     await query.answer()
+    
     data = query.data  # e.g. "del_menu1:Qovurma Lag'mon"
     _, rest = data.split("_", 1)
     menu_name, food = rest.split(":", 1)
+    
     await menu_col.update_one({"name": menu_name}, {"$pull": {"items": food}})
-    await query.message.edit_text(f"✅ «{food}» {menu_name} dan o‘chirildi.", reply_markup=get_menu_kb())
+    await query.message.edit_text(f"✅ «{food}» {menu_name} dan o'chirildi.", reply_markup=get_menu_kb())
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Dispatch menu panel callbacks to the correct helper."""
     if menu_col is None:
         await init_collections()
+    
     query = update.callback_query
     await query.answer()
     data = query.data
 
-    if data == "view_menu1":
-        await view_menu(update, context, "menu1")
-    elif data == "view_menu2":
-        await view_menu(update, context, "menu2")
-    elif data == "add_menu1":
-        await add_menu_prompt(update, context, "menu1")
-    elif data == "add_menu2":
-        await add_menu_prompt(update, context, "menu2")
-    elif data == "del_menu1":
-        await del_menu_prompt(update, context, "menu1")
-    elif data == "del_menu2":
-        await del_menu_prompt(update, context, "menu2")
+    # Handle separator (do nothing)
+    if data == "separator":
+        return
+
+    # View menu callbacks
+    if data.startswith("view_"):
+        menu_name = data.replace("view_", "")
+        await view_menu(update, context, menu_name)
+    
+    # Add menu callbacks
+    elif data.startswith("add_"):
+        menu_name = data.replace("add_", "")
+        await add_menu_prompt(update, context, menu_name)
+    
+    # Delete menu callbacks
+    elif data.startswith("del_") and ":" not in data:
+        menu_name = data.replace("del_", "")
+        await del_menu_prompt(update, context, menu_name)
+    
+    # Handle specific delete item callbacks
+    elif data.startswith("del_") and ":" in data:
+        await handle_menu_del(update, context)
+    
+    # Back button
     elif data == "menu_back":
-        # go back to admin panel or remove menu message
         try:
             await query.message.delete()
         except BadRequest:
             await update.callback_query.message.reply_text("🔧 Admin panelga qaytdingiz.", reply_markup=get_admin_kb())
+    
     else:
-        # catch delete callbacks
-        if data.startswith("del_menu1:") or data.startswith("del_menu2:"):
-            await handle_menu_del(update, context)
-        else:
-            await query.message.edit_text("❌ Noma’lum buyruq.", reply_markup=get_menu_kb())
+        await query.message.edit_text("❌ Noma'lum buyruq.", reply_markup=get_menu_kb())
 
 async def send_final_summary(context: ContextTypes.DEFAULT_TYPE):
     """Send final summary of broadcast at 10:00 AM."""
@@ -739,6 +869,7 @@ async def send_summary(context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(u.telegram_id, text, reply_markup=get_default_kb(u.is_admin))
         except Exception as e:
             logger.error(f"Failed user recap for {u.telegram_id}: {e}")
+
 # ─── CARD MANAGEMENT ─────────────────────────────────────────────────────────
 
 # ─── /karta_raqami — set card number ────────────────────────────────────────────
@@ -990,10 +1121,15 @@ def register_handlers(app):
     app.add_handler(CallbackQueryHandler(remove_admin_callback, pattern=r"^remove_admin:\d+$"))
     app.add_handler(CallbackQueryHandler(delete_user_callback,  pattern=r"^delete_user:\d+$"))
 
-    # ─── 8) MENU INLINE FLOW & TEXT HANDLER ────────────────────────────
-    menu_pattern = r"^(view_menu1|view_menu2|add_menu1|add_menu2|del_menu1|del_menu2|menu_back)$"
+    # Updated regex pattern to include all 4 menus
+    menu_pattern = r"^(view_menu[1-4]|add_menu[1-4]|del_menu[1-4]|menu_back)$"
+
+    # Register the callback query handler with updated pattern
     app.add_handler(CallbackQueryHandler(menu_callback, pattern=menu_pattern))
+
+    # Register the text message handler for menu additions
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_add))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_del))
 
     # ─── 10) NOTIFY RESPONSE INLINE (Optional) ─────────────────────────
     app.add_handler(CallbackQueryHandler(notify_response_callback, pattern=r"^notify_response:(yes|no):\d+$"))
