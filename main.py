@@ -117,7 +117,7 @@ def main():
         # Morning prompt 07:00 Mon–Fri
         jq.run_daily(
             uh.morning_prompt,
-            time=dt_time(8, 2, tzinfo=tz),
+            time=dt_time(7, 00, tzinfo=tz),
             days=(1, 2, 3, 4, 5),
             name="morning_survey"
         )
