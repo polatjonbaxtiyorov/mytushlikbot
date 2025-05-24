@@ -33,7 +33,7 @@ from utils import (
     get_all_users_async,
 )
 from utils.sheets_utils import find_user_in_sheet
-from handlers.admin_handlers import admin_panel
+from handlers.admin_handlers import admin_panel, get_menu_for_today
 
 logger = logging.getLogger(__name__)
 
@@ -260,20 +260,25 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Iltimos, avval /start bilan ro'yxatdan o'ting."
         )
 
-    tz = pytz.timezone("Asia/Tashkent")
-    today_wd = datetime.now(tz).weekday()
-    menu_name = "menu1" if today_wd in (0,2,4) else "menu2"
-    menu_col  = await get_collection("menu")
-    doc       = await menu_col.find_one({"name": menu_name})
-    items     = doc.get("items", [])
+    # Get today's menu using the new 4-menu system
+    menu_name = get_menu_for_today()
+    menu_col = await get_collection("menu")
+    doc = await menu_col.find_one({"name": menu_name})
+    items = doc.get("items", []) if doc else []
+
+    if not items:
+        await update.message.reply_text("❌ Bugungi menyu hali tayyor emas.")
+        return
 
     kb = [[InlineKeyboardButton(i, callback_data=f"food:{i}")] for i in items]
     kb.append([InlineKeyboardButton("🔙 Ortga", callback_data="cancel_attendance")])
+    
     await update.message.reply_text(
-        "Bugungi taomlar:", reply_markup=InlineKeyboardMarkup(kb)
+        "🍽 Bugungi taomlar:",
+        reply_markup=InlineKeyboardMarkup(kb)
     )
 
-
+# ─── FOR ATTENDANCE CALLBACK ──────────────────────────────
 async def attendance_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
 
@@ -327,11 +332,15 @@ async def attendance_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if today_str in user.declined_days:
         await user.remove_decline(today_str)
 
-    wd = datetime.now(tz).weekday()
-    menu_name = "menu1" if wd in (0, 2, 4) else "menu2"
+    # Use the new 4-menu system instead of old 2-menu logic
+    menu_name = get_menu_for_today()
     menu_col = await get_collection("menu")
     doc = await menu_col.find_one({"name": menu_name})
-    foods = doc.get("items", [])
+    foods = doc.get("items", []) if doc else []
+
+    if not foods:
+        await q.message.edit_text("❌ Bugungi menyu hali tayyor emas.")
+        return
 
     kb = [[InlineKeyboardButton(f, callback_data=f"food:{f}")] for f in foods]
     kb.append([InlineKeyboardButton("🔙 Ortga", callback_data="cancel_attendance")])
