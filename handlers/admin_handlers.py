@@ -674,8 +674,7 @@ async def handle_menu_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     data = query.data  # e.g. "del_menu1:Qovurma Lag'mon"
-    _, rest = data.split("_", 1)
-    menu_name, food = rest.split(":", 1)
+    _, menu_name, food = query.data.split(":", 2)
     
     await menu_col.update_one({"name": menu_name}, {"$pull": {"items": food}})
     await query.message.edit_text(f"✅ «{food}» {menu_name} dan o'chirildi.", reply_markup=get_menu_kb())
