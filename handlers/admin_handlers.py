@@ -1126,9 +1126,11 @@ def register_handlers(app):
     # Register the callback query handler with updated pattern
     app.add_handler(CallbackQueryHandler(menu_callback, pattern=menu_pattern))
 
-    # Register the text message handler for menu additions
+    # For inline delete button clicks
+    app.add_handler(CallbackQueryHandler(handle_menu_del, pattern=r"^del:"))
+
+    # For text messages to add menu items
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_add))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_del))
 
     # ─── 10) NOTIFY RESPONSE INLINE (Optional) ─────────────────────────
     app.add_handler(CallbackQueryHandler(notify_response_callback, pattern=r"^notify_response:(yes|no):\d+$"))
